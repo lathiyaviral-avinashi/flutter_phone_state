@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:flutter_phone_state/extensions_static.dart';
 import 'package:flutter_phone_state/logging.dart';
 import 'package:flutter_phone_state/phone_event.dart';
@@ -38,8 +39,9 @@ class FlutterPhoneState with WidgetsBindingObserver {
   /// Places a phone call.  This will initiate a call on the target OS.
   /// The [PhoneCall] can be used to subscribe to events, or to await completion.  See
   /// see [PhoneCall.done] or [PhoneCall.eventStream]
-  static PhoneCall startPhoneCall(String phoneNumber) {
-    return _instance._makePhoneCall(phoneNumber);
+  static Future<PhoneCall> startPhoneCall(String phoneNumber) async {
+    var res = await _instance._makePhoneCall(phoneNumber);
+    return res;
   }
 
   /// Returns a list of active calls.
@@ -90,39 +92,44 @@ class FlutterPhoneState with WidgetsBindingObserver {
     }
   }
 
-  _openCallLink(PhoneCall call) async {
-    /// Phone calls are weird in IOS.  We need to initiate the phone call by using the link
-    /// below, but the app doesn't give us any meaningful feedback, so we mark the phone interaction
-    /// as "complete" (technically this just means the call was started) by either
-    /// (a) the applicationStateChange recognizing a return to the app
-    /// (b) the event handler above fires with a call start event within 30 seconds
-    /// (c) 5 seconds passes with no feedback (this will send back a result code of [cancelled], which
-    ///     means the call won't be logged
-    try {
-      final link = "tel:${call.phoneNumber}";
-      final status = await _openTelLink(link);
+  // _openCallLink(PhoneCall call) async {
+  //   /// Phone calls are weird in IOS.  We need to initiate the phone call by using the link
+  //   /// below, but the app doesn't give us any meaningful feedback, so we mark the phone interaction
+  //   /// as "complete" (technically this just means the call was started) by either
+  //   /// (a) the applicationStateChange recognizing a return to the app
+  //   /// (b) the event handler above fires with a call start event within 30 seconds
+  //   /// (c) 5 seconds passes with no feedback (this will send back a result code of [cancelled], which
+  //   ///     means the call won't be logged
+  //   try {
+  //     final link = "tel:${call.phoneNumber}";
+  //     final status = await _openTelLink(link);
 
-      if (status != LinkOpenResult.success) {
-        _changeStatus(call, PhoneCallStatus.error);
-        return;
-      }
+  //     if (status != LinkOpenResult.success) {
+  //       _changeStatus(call, PhoneCallStatus.error);
+  //       return;
+  //     }
 
-      /// If no activity reported within 10 seconds, we'll cancel the call
-      await Future.delayed(Duration(seconds: 60));
+  //     /// If no activity reported within 10 seconds, we'll cancel the call
+  //     await Future.delayed(Duration(seconds: 60));
 
-      if (call.status == PhoneCallStatus.dialing) {
-        _changeStatus(call, PhoneCallStatus.timedOut);
-      }
-    } catch (e) {
-      _changeStatus(call, PhoneCallStatus.error);
-    }
-  }
+  //     if (call.status == PhoneCallStatus.dialing) {
+  //       _changeStatus(call, PhoneCallStatus.timedOut);
+  //     }
+  //   } catch (e) {
+  //     _changeStatus(call, PhoneCallStatus.error);
+  //   }
+  // }
 
-  PhoneCall _makePhoneCall(String phoneNumber) {
+  Future<PhoneCall> _makePhoneCall(String phoneNumber) async {
     final call = PhoneCall.start(phoneNumber, PhoneCallPlacement.outbound);
     _calls.add(call);
     _changeStatus(call, PhoneCallStatus.dialing);
-    _openCallLink(call);
+    bool res = await FlutterPhoneDirectCaller.callNumber(phoneNumber);
+    if(!res) {
+      _changeStatus(call, PhoneCallStatus.error);
+    }else{
+      
+    }
     return call;
   }
 
